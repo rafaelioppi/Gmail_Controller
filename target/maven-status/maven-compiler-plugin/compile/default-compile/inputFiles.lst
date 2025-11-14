@@ -1,1 +1,4 @@
 /workspaces/Gmail_Controller/src/main/java/com/example/Application.java
+/workspaces/Gmail_Controller/src/main/java/com/example/config/SecurityConfig.java
+/workspaces/Gmail_Controller/src/main/java/com/example/controller/GmailController.java
+/workspaces/Gmail_Controller/src/main/java/com/example/service/GmailService.java
