@@ -2,3 +2,4 @@ com/example/controller/GmailController.class
 com/example/config/SecurityConfig.class
 com/example/Application.class
 com/example/service/GmailService.class
+com/example/controller/HelloController.class
