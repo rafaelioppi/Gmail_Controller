@@ -47,14 +47,22 @@ public class GmailService {
         return client.getAccessToken().getTokenValue();
     }
 
+    /**
+     * Obtém o cliente Gmail API, garantindo que o escopo gmail.modify esteja associado às credenciais.
+     */
     private Gmail getGmailClient() throws Exception {
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
         GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
 
         String accessToken = getAccessToken();
 
-        // ✅ Cria GoogleCredentials a partir do AccessToken
-        GoogleCredentials credentials = GoogleCredentials.create(new AccessToken(accessToken, null));
+        // Escopo necessário para operações de modificação/exclusão
+        Collection<String> scopes = Collections.singletonList("https://www.googleapis.com/auth/gmail.modify");
+
+        // Cria GoogleCredentials a partir do AccessToken e força a inclusão dos escopos
+        GoogleCredentials credentials = GoogleCredentials.create(new AccessToken(accessToken, null))
+                .createScoped(scopes); // <--- CORREÇÃO APLICADA AQUI!
+                
         HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 
         return new Gmail.Builder(httpTransport, jsonFactory, requestInitializer)
@@ -180,23 +188,33 @@ public class GmailService {
         return result;
     }
 
-   // No GmailService
-public void deleteMessageById(String id) throws Exception {
-    Gmail gmail = getGmailClient();
-    try {
-        gmail.users().messages().delete("me", id).execute();
-    } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
-        if (e.getStatusCode() == 403) {
-            // Lança uma exceção específica para o controlador tratar o 403 (FORBIDDEN)
-            throw new IllegalStateException("Permissão insuficiente para apagar o e-mail. Reautorize a aplicação com o escopo 'gmail.modify'.", e);
+    // Código ajustado para fins de diagnóstico e tratamento do 403 (Forbidden)
+    public void deleteMessageById(String id) throws Exception {
+        Gmail gmail = getGmailClient();
+        try {
+            gmail.users().messages().delete("me", id).execute();
+        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+            // 1. Loga a mensagem exata do Google para diagnóstico imediato
+            System.err.println("Erro API Google ao apagar ID=" + id + ": " + e.getDetails().getMessage()); 
+
+            // 2. Imprime o stack trace completo
+            e.printStackTrace(); 
+
+            if (e.getStatusCode() == 403) {
+                // Se for 403, é problema de permissão (token)
+                throw new IllegalStateException("Permissão insuficiente para apagar o e-mail. O token pode estar obsoleto ou faltar o escopo 'gmail.modify'.", e);
+            }
+            
+            // 3. Se for outro erro HTTP (ex: 404 Not Found), lança a exceção original
+            throw e;
+        } catch (Exception e) {
+            // Se for qualquer outra exceção não-HTTP
+            System.err.println("Erro desconhecido ao apagar mensagem ID=" + id + ": " + e.getMessage());
+            e.printStackTrace();
+            throw new Exception("Erro interno ao apagar email: " + e.getMessage(), e);
         }
-        // Para outros erros da API
-        throw e;
-    } catch (Exception e) {
-        System.err.println("Erro ao apagar mensagem ID=" + id + ": " + e.getMessage());
-        throw new Exception("Erro desconhecido ao apagar email: " + e.getMessage(), e);
     }
-}
+
     public void sendEmail(String to, String subject, String body) throws Exception {
         Gmail gmail = getGmailClient();
 
