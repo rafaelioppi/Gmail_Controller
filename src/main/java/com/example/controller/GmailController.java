@@ -1,11 +1,17 @@
 package com.example.controller;
 
 import com.example.service.GmailService;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException; // ✅ Import necessário
 import java.util.List;
 import java.util.Map;
 
@@ -70,21 +76,34 @@ public class GmailController {
         }
     }
 
+    /**
+     * Endpoint para exclusão permanente. O Service executa: Lixeira -> Esvaziar Lixeira.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteMessage(@PathVariable("id") String id) {
         try {
-            gmailService.deleteMessageById(id);
+            // CHAMADA CORRETA: Usa o método que implementa a sequência de exclusão (Lixeira + Esvaziar).
+            gmailService.trashMessageThenEmpty(id); 
+            
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "message", "🗑️ Email apagado com sucesso!"
+                    "message", "🗑️ Email apagado permanentemente com sucesso!"
             ));
         } catch (IllegalStateException e) {
+            // Captura 403 Forbidden: Geralmente ocorre quando falta o escopo 'gmail.modify'.
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", e.getMessage()));
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Mensagem não encontrada."));
+        } catch (GoogleJsonResponseException e) {
+            // Captura erros específicos da API do Google (ex: 404 Not Found).
+            if (e.getStatusCode() == 404) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Mensagem não encontrada."));
+            }
+            // Trata outros erros da API do Google.
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            // Captura qualquer outro erro inesperado.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", e.getMessage()));
         }
