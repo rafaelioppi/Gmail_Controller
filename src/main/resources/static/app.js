@@ -38,6 +38,62 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Inbox
+  const inboxBtn = document.getElementById("inboxBtn");
+  if (inboxBtn) {
+    inboxBtn.addEventListener("click", async () => {
+      showAlert("⏳ Carregando inbox...", "info");
+
+      try {
+        const data = await fetchJson(`${BASE_URL}/gmail/inbox`);
+        const tbody = document.querySelector("#inboxTable tbody");
+        if (!tbody) return;
+
+        tbody.innerHTML = "";
+
+        if (Array.isArray(data) && data.length > 0) {
+          data.forEach(msg => {
+            const row = document.createElement("tr");
+
+            const abrirBtn = document.createElement("button");
+            abrirBtn.className = "btn btn-sm btn-primary";
+            abrirBtn.innerText = "📖 Abrir";
+            abrirBtn.addEventListener("click", () => abrirEmail(msg.id));
+
+            const lerBtn = document.createElement("button");
+            lerBtn.className = "btn btn-sm btn-info text-white";
+            lerBtn.innerText = "👁️ Ler";
+            lerBtn.addEventListener("click", () => lerEmail(msg.id));
+
+            const apagarBtn = document.createElement("button");
+            apagarBtn.className = "btn btn-sm btn-danger";
+            apagarBtn.innerText = "🗑️ Apagar";
+            apagarBtn.addEventListener("click", () => apagarEmail(msg.id));
+
+            row.innerHTML = `
+              <td>${msg.from || ""}</td>
+              <td>${msg.subject || ""}</td>
+              <td>${msg.snippet || ""}</td>
+            `;
+            const tdActions = document.createElement("td");
+            tdActions.appendChild(abrirBtn);
+            tdActions.appendChild(lerBtn);
+            tdActions.appendChild(apagarBtn);
+            row.appendChild(tdActions);
+
+            tbody.appendChild(row);
+          });
+
+          showAlert("📥 Inbox carregada com sucesso!", "success");
+        } else {
+          showAlert("Nenhuma mensagem encontrada.", "warning");
+        }
+      } catch (err) {
+        showAlert("❌ Erro ao buscar inbox: " + err.message, "danger");
+      }
+    });
+  }
+
   // Abrir email em nova aba
   async function abrirEmail(id) {
     try {
@@ -49,7 +105,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const safeBody = data.body ? encodeURIComponent(data.body) : "";
+      const safeBody = data.body 
+        ? data.body.replace(/"/g, '&quot;').replace(/'/g, '&#39;') 
+        : "";
 
       newWin.document.write(`
         <!DOCTYPE html>
@@ -101,12 +159,40 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = await fetchJson(`${BASE_URL}/gmail/${id}`);
 
-      const bodyContent = data.body?.includes("<") 
-        ? data.body 
-        : (data.body || "").replace(/\n/g, "<br>");
+      let bodyContent = "";
+      if (data.body) {
+        if (/<[a-z][\s\S]*>/i.test(data.body)) {
+          bodyContent = data.body;
+        } else {
+          bodyContent = data.body.replace(/\n/g, "<br>");
+        }
+      }
 
-      document.getElementById("emailModalTitle").innerText = data.subject || "(sem assunto)";
-      document.getElementById("emailModalBody").innerHTML = bodyContent;
+      const safeSubject = (data.subject || "(sem assunto)")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      const attachmentsHtml = (data.attachments && data.attachments.length > 0)
+        ? data.attachments.map(att => `
+            <li>
+              📎 ${att.filename} (${att.mimeType}, ${att.size} bytes)
+              <br>
+              <a href="data:${att.mimeType};base64,${att.contentBase64}" download="${att.filename}">
+                ⬇️ Download
+              </a>
+            </li>
+          `).join("")
+        : "<li>Nenhum anexo</li>";
+
+      document.getElementById("emailModalTitle").innerHTML = safeSubject;
+      document.getElementById("emailModalBody").innerHTML = `
+        <div>
+          ${bodyContent || "(sem conteúdo)"}
+          <hr>
+          <h5>Anexos:</h5>
+          <ul>${attachmentsHtml}</ul>
+        </div>
+      `;
 
       new bootstrap.Modal(document.getElementById("emailModal")).show();
 
@@ -115,11 +201,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Apagar email com feedback detalhado
+  // Apagar email
   async function apagarEmail(id) {
     if (!confirm("Tem certeza que deseja apagar este email?")) return;
     try {
-      const res = await fetch(`${BASE_URL}/gmail/${id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${BASE_URL}/gmail/${id}`, { 
+        method: "DELETE", 
+        credentials: "include" 
+      });
 
       if (res.status === 401) {
         showAlert("⚠️ Sessão expirada. Faça login novamente.", "warning");
@@ -143,47 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Inbox
-  const inboxBtn = document.getElementById("inboxBtn");
-  if (inboxBtn) {
-    inboxBtn.addEventListener("click", async () => {
-      showAlert("⏳ Carregando inbox...", "info");
-
-      try {
-        const data = await fetchJson(`${BASE_URL}/gmail/inbox`);
-        const tbody = document.querySelector("#inboxTable tbody");
-        if (!tbody) return;
-
-        tbody.innerHTML = "";
-
-        if (Array.isArray(data) && data.length > 0) {
-          data.forEach(msg => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-              <td>${msg.from || ""}</td>
-              <td>${msg.subject || ""}</td>
-              <td>${msg.snippet || ""}</td>
-              <td>
-                <button class="btn btn-sm btn-primary" onclick="abrirEmail('${msg.id}')" aria-label="Abrir email">📖 Abrir</button>
-                <button class="btn btn-sm btn-info text-white" onclick="lerEmail('${msg.id}')" aria-label="Ler email">👁️ Ler</button>
-                <button class="btn btn-sm btn-danger" onclick="apagarEmail('${msg.id}')" aria-label="Apagar email">🗑️ Apagar</button>
-              </td>
-            `;
-            tbody.appendChild(row);
-          });
-
-          showAlert("📥 Inbox carregada com sucesso!", "success");
-
-        } else {
-          showAlert("Nenhuma mensagem encontrada.", "warning");
-        }
-
-      } catch (err) {
-        showAlert("❌ Erro ao buscar inbox: " + err.message, "danger");
-      }
-    });
-  }
-
   // Enviar email
   const sendForm = document.getElementById("sendForm");
   if (sendForm) {
@@ -203,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sendButton.disabled = true;
       sendButton.innerText = "Enviando...";
 
-      try {
+       try {
         const res = await fetch(`${BASE_URL}/gmail/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
