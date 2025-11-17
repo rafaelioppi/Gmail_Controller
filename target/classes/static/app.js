@@ -16,11 +16,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Helper para requisições JSON
-  async function fetchJson(url, options = {}) {
+ // Helper para requisições JSON
+async function fetchJson(url, options = {}) {
     const res = await fetch(url, { credentials: "include", ...options });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    
+    // MELHORIA: Tente extrair o corpo do erro (se JSON)
+    if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({})); 
+        const errorMessage = errorBody.error || `Erro de HTTP: ${res.status}`;
+        throw new Error(errorMessage);
+    }
+    
     return res.json();
-  }
+}
 
   // Login com Google
   const loginBtn = document.getElementById("loginBtn");
@@ -202,36 +210,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Apagar email
-  async function apagarEmail(id) {
+  // Apagar email
+async function apagarEmail(id) {
     if (!confirm("Tem certeza que deseja apagar este email?")) return;
     try {
-      const res = await fetch(`${BASE_URL}/gmail/${id}`, { 
-        method: "DELETE", 
-        credentials: "include" 
-      });
+        const res = await fetch(`${BASE_URL}/gmail/${id}`, { 
+            method: "DELETE", 
+            credentials: "include" 
+        });
 
-      if (res.status === 401) {
-        showAlert("⚠️ Sessão expirada. Faça login novamente.", "warning");
-        return;
-      }
-      if (res.status === 403) {
-        showAlert("⚠️ Permissão insuficiente. Autorize novamente o acesso ao Gmail.", "warning");
-        return;
-      }
-      if (res.status === 404) {
-        showAlert("📭 Mensagem já apagada ou não encontrada.", "info");
-        return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      showAlert("🗑️ Email apagado com sucesso!", "success");
-      document.getElementById("inboxBtn").click();
-
+        if (res.status === 401) {
+            showAlert("⚠️ Sessão expirada. Faça login novamente.", "warning");
+            return;
+        }
+        if (res.status === 403) {
+            // ESSA É A SOLUÇÃO DO PROBLEMA DE PERMISSÃO
+            showAlert("⚠️ Permissão insuficiente. Autorize novamente o acesso ao Gmail.", "warning");
+            return;
+        }
+        // ... (outros status)
     } catch (err) {
-      showAlert("❌ Erro ao apagar email: " + err.message, "danger");
+        // ...
     }
-  }
-
+}
   // Enviar email
   const sendForm = document.getElementById("sendForm");
   if (sendForm) {

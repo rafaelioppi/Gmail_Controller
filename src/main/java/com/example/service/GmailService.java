@@ -180,16 +180,23 @@ public class GmailService {
         return result;
     }
 
-    public void deleteMessageById(String id) throws Exception {
-        Gmail gmail = getGmailClient();
-        try {
-            gmail.users().messages().delete("me", id).execute();
-        } catch (Exception e) {
-            System.err.println("Erro ao apagar mensagem ID=" + id + ": " + e.getMessage());
-            throw new IllegalStateException("Erro ao apagar email: " + e.getMessage(), e);
+   // No GmailService
+public void deleteMessageById(String id) throws Exception {
+    Gmail gmail = getGmailClient();
+    try {
+        gmail.users().messages().delete("me", id).execute();
+    } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+        if (e.getStatusCode() == 403) {
+            // Lança uma exceção específica para o controlador tratar o 403 (FORBIDDEN)
+            throw new IllegalStateException("Permissão insuficiente para apagar o e-mail. Reautorize a aplicação com o escopo 'gmail.modify'.", e);
         }
+        // Para outros erros da API
+        throw e;
+    } catch (Exception e) {
+        System.err.println("Erro ao apagar mensagem ID=" + id + ": " + e.getMessage());
+        throw new Exception("Erro desconhecido ao apagar email: " + e.getMessage(), e);
     }
-
+}
     public void sendEmail(String to, String subject, String body) throws Exception {
         Gmail gmail = getGmailClient();
 
