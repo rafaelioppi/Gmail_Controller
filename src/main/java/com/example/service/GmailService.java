@@ -7,14 +7,18 @@ import com.google.api.services.gmail.model.MessagePartBody;
 import com.google.api.services.gmail.model.MessagePartHeader;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.auth.http.HttpCredentialsAdapter;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
+
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import java.io.IOException;
+
 import jakarta.mail.Session;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -49,17 +53,15 @@ public class GmailService {
 
         String accessToken = getAccessToken();
 
-        HttpRequestInitializer requestInitializer = request ->
-                request.getHeaders().setAuthorization("Bearer " + accessToken);
+        // ✅ Cria GoogleCredentials a partir do AccessToken
+        GoogleCredentials credentials = GoogleCredentials.create(new AccessToken(accessToken, null));
+        HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 
         return new Gmail.Builder(httpTransport, jsonFactory, requestInitializer)
                 .setApplicationName("gmail-controller")
                 .build();
     }
 
-    /**
-     * Lista até 10 mensagens da caixa de entrada com detalhes básicos.
-     */
     public List<Map<String, String>> listMessagesDetailed() throws Exception {
         Gmail gmail = getGmailClient();
         List<Message> messages = gmail.users().messages().list("me")
@@ -100,19 +102,14 @@ public class GmailService {
         return result;
     }
 
-    /**
-     * Extrai corpo da mensagem (text/plain ou text/html).
-     */
     private String extractBody(Message message) {
         if (message.getPayload() == null) return "";
 
-        // Caso simples
         if (message.getPayload().getBody() != null && message.getPayload().getBody().getData() != null) {
             byte[] bytes = Base64.getUrlDecoder().decode(message.getPayload().getBody().getData());
             return new String(bytes);
         }
 
-        // Caso multipart
         if (message.getPayload().getParts() != null) {
             for (MessagePart part : message.getPayload().getParts()) {
                 if ((part.getMimeType().equalsIgnoreCase("text/plain") || part.getMimeType().equalsIgnoreCase("text/html"))
@@ -126,9 +123,6 @@ public class GmailService {
         return "";
     }
 
-    /**
-     * Extrai anexos da mensagem.
-     */
     private List<Map<String, String>> extractAttachments(Gmail gmail, Message message) throws Exception {
         List<Map<String, String>> attachments = new ArrayList<>();
 
@@ -146,7 +140,7 @@ public class GmailService {
                             "filename", part.getFilename(),
                             "mimeType", part.getMimeType(),
                             "size", String.valueOf(part.getBody().getSize()),
-                            "contentBase64", Base64.getEncoder().encodeToString(fileBytes) // pode ser usado para download
+                            "contentBase64", Base64.getEncoder().encodeToString(fileBytes)
                     ));
                 }
             }
@@ -155,9 +149,6 @@ public class GmailService {
         return attachments;
     }
 
-    /**
-     * Retorna detalhes completos de uma mensagem pelo ID.
-     */
     public Map<String, Object> getMessageById(String id) throws Exception {
         Gmail gmail = getGmailClient();
         Message fullMessage = gmail.users().messages().get("me", id).execute();
@@ -189,24 +180,16 @@ public class GmailService {
         return result;
     }
 
-    /**
-     * Apaga uma mensagem pelo ID.
-     */
- public void deleteMessageById(String id) throws Exception {
-    Gmail gmail = getGmailClient();
-    try {
-        gmail.users().messages().delete("me", id).execute();
-    } catch (Exception e) {
-        // Log detalhado para entender o motivo
-        System.err.println("Erro ao apagar mensagem ID=" + id + ": " + e.getMessage());
-        throw new IllegalStateException("Erro ao apagar email: " + e.getMessage(), e);
+    public void deleteMessageById(String id) throws Exception {
+        Gmail gmail = getGmailClient();
+        try {
+            gmail.users().messages().delete("me", id).execute();
+        } catch (Exception e) {
+            System.err.println("Erro ao apagar mensagem ID=" + id + ": " + e.getMessage());
+            throw new IllegalStateException("Erro ao apagar email: " + e.getMessage(), e);
+        }
     }
-}
 
-
-    /**
-     * Envia um email simples usando a API do Gmail.
-     */
     public void sendEmail(String to, String subject, String body) throws Exception {
         Gmail gmail = getGmailClient();
 

@@ -61,6 +61,14 @@
             <artifactId>google-oauth-client-jetty</artifactId>
             <version>1.30.4</version> <!-- esta versão existe no Maven Central :contentReference[oaicite:0]{index=0} -->
         </dependency>
+
+                <!-- Google Auth Library (necessário para HttpCredentialsAdapter e AccessToken) -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.19.0</version>
+        </dependency>
+
         <!-- Google API Client - Gson support -->
 
 <dependency>

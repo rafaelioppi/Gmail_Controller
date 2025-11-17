@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException; // ✅ Import necessário
 import java.util.List;
 import java.util.Map;
 
@@ -18,9 +19,6 @@ public class GmailController {
         this.gmailService = gmailService;
     }
 
-    /**
-     * Lista mensagens detalhadas da caixa de entrada do Gmail.
-     */
     @GetMapping("/inbox")
     public ResponseEntity<?> listMessages() {
         try {
@@ -32,18 +30,11 @@ public class GmailController {
         }
     }
 
-    /**
-     * Endpoint simples para teste de disponibilidade.
-     */
     @GetMapping("/ping")
     public ResponseEntity<String> ping() {
         return ResponseEntity.ok("pong");
     }
 
-    /**
-     * Envia um email usando o Gmail API.
-     * Espera no corpo da requisição os campos: to, subject e body.
-     */
     @PostMapping("/send")
     public ResponseEntity<?> sendEmail(@RequestBody Map<String, String> payload) {
         try {
@@ -68,9 +59,6 @@ public class GmailController {
         }
     }
 
-    /**
-     * Retorna detalhes completos de uma mensagem pelo ID.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<?> getMessage(@PathVariable("id") String id) {
         try {
@@ -82,9 +70,6 @@ public class GmailController {
         }
     }
 
-    /**
-     * Apaga uma mensagem pelo ID.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteMessage(@PathVariable("id") String id) {
         try {
@@ -93,6 +78,12 @@ public class GmailController {
                     "status", "success",
                     "message", "🗑️ Email apagado com sucesso!"
             ));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Mensagem não encontrada."));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", e.getMessage()));
